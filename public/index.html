@@ -1,48 +1,87 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>chat-app</title>
-    <link rel="stylesheet" type="text/css" href="style.css">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ultra Chat</title>
+    
+    <link rel="stylesheet" href="styles.css" />
+    
+    <script src="/socket.io/socket.io.js" defer></script>
+    <script src="code.js" defer></script>
 </head>
 <body>
-    <div class="app">
-        <div class="screen join-screen active"> 
-            <div class="form">
-                <h2>Join ChatRoom</h2>
-                <div class="form-input">
-                    <label>Username</label>
-                    <input type="text" id="username">
-                </div>
-                <div class="form-input">
-                    <button id="join-user">Join</button>
-                </div>
-            </div>
-        </div>
-        <!-- chat room  screen -->
-        <div class="screen chat-screen">
-            <div class="header">
-                <div class="logo">ChatRoom</div>
-                <button id="exit-chat">Exit</button>
-            </div>
-            <!-- messages interface -->
-            <div class="messages">
-            </div>
-            <div class="typebox">
-                <input type="text" id="message-input">
-                <button id="send-message">Send</button>
+
+    <div id="toast-box"></div>
+
+    <div id="lobby-screen" class="screen active">
+        <div class="lobby-card">
+            <h1 class="app-title">Ultra Chat</h1>
+            <p class="subtitle">Secure • Real-Time • Fast</p>
+
+            <div class="input-group">
+                <label>Choose a Username</label>
+                <input type="text" id="lobby-username" placeholder="e.g. IronMan" maxlength="15" />
             </div>
 
+            <div class="room-section">
+                <h3>Active Rooms</h3>
+                <div id="room-list" class="room-list">
+                    <div class="empty-msg">Connecting to server...</div>
+                </div>
+            </div>
+
+            <button id="btn-create-room" class="btn primary full-width">+ Create New Room</button>
+        </div>
+
+        <div id="create-room-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2>Create Room</h2>
+                <input type="text" id="new-room-name" placeholder="Room Name (e.g. General)" maxlength="20" />
+                <div class="modal-actions">
+                    <button id="modal-cancel-room" class="btn secondary">Cancel</button>
+                    <button id="modal-create-room" class="btn primary">Create</button>
+                </div>
+            </div>
         </div>
     </div>
 
+    <div id="chat-screen" class="screen">
+        
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>Rooms</h2>
+            </div>
+            <div id="sidebar-rooms" class="sidebar-scroll">
+                </div>
+            
+            <div class="sidebar-header mt-4">
+                <h2>Users Online</h2>
+            </div>
+            <div id="sidebar-users" class="sidebar-scroll">
+                </div>
+        </aside>
 
+        <main class="chat-main">
+            <header class="chat-header">
+                <div class="header-info">
+                    <h2 id="chat-room-name"># General</h2>
+                    <span id="chat-user-info">Logged in as...</span>
+                </div>
+                <button id="leave-room" class="btn danger small">Leave Room</button>
+            </header>
 
+            <div id="messages" class="messages-area">
+                </div>
+            
+            <div id="typing-indicator" class="typing-text"></div>
 
+            <div class="input-area">
+                <input type="text" id="message-input" placeholder="Type a message..." maxlength="500" autocomplete="off" />
+                <button id="send-message" class="btn primary">Send ➤</button>
+            </div>
+        </main>
+    </div>
 
-
-    <script type="text/javascript" src="socket.io/socket.io.js"></script>
-    <script type="text/javascript" src="code.js"></script>
 </body>
 </html>

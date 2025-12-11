@@ -1,0 +1,143 @@
+/* public/styles.css */
+
+/* --- 1. Global Variables & Reset --- */
+:root {
+    --primary: #2563eb;       /* Main Blue */
+    --primary-dark: #1d4ed8;  /* Darker Blue on Hover */
+    --bg: #f3f4f6;            /* Light Grey Background */
+    --white: #ffffff;
+    --text-dark: #1f2937;
+    --text-light: #6b7280;
+    --danger: #ef4444;        /* Red for errors/leave */
+    --success: #10b981;       /* Green for success */
+    --radius: 12px;           /* Rounded corners */
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; }
+
+body { 
+    background: var(--bg); 
+    color: var(--text-dark); 
+    height: 100vh; 
+    overflow: hidden; /* Prevent body scroll, we scroll inside chat */
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- 2. Screen Toggling Logic --- */
+.screen { display: none; width: 100%; height: 100%; }
+.screen.active { display: flex; } /* JavaScript toggles this class */
+
+/* --- 3. Buttons & Inputs --- */
+.btn { border: none; padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+.btn.primary { background: var(--primary); color: var(--white); }
+.btn.primary:hover { background: var(--primary-dark); }
+.btn.secondary { background: #e5e7eb; color: var(--text-dark); }
+.btn.danger { background: #fee2e2; color: var(--danger); }
+.btn.small { padding: 6px 12px; font-size: 0.85rem; }
+.full-width { width: 100%; }
+
+input[type="text"] { 
+    width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; outline: none; transition: 0.2s;
+}
+input[type="text"]:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
+
+/* --- 4. Lobby Screen --- */
+#lobby-screen { align-items: center; justify-content: center; padding: 20px; }
+
+.lobby-card { 
+    background: var(--white); 
+    padding: 2rem; 
+    border-radius: var(--radius); 
+    box-shadow: var(--shadow); 
+    width: 100%; 
+    max-width: 400px; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 1.5rem; 
+}
+
+.app-title { text-align: center; color: var(--primary); font-size: 1.8rem; }
+.subtitle { text-align: center; color: var(--text-light); margin-top: -1rem; font-size: 0.9rem; }
+
+.room-section h3 { font-size: 0.9rem; color: var(--text-light); margin-bottom: 0.5rem; text-transform: uppercase; }
+.room-list { max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; }
+
+.room-card { 
+    padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: 0.2s;
+}
+.room-card:hover { background: #eff6ff; border-color: var(--primary); }
+
+/* --- 5. Chat Screen Layout --- */
+#chat-screen { max-width: 1200px; margin: 0 auto; background: var(--white); box-shadow: var(--shadow); }
+@media (min-width: 768px) { 
+    #chat-screen { margin: 20px auto; height: calc(100vh - 40px); border-radius: var(--radius); overflow: hidden; } 
+}
+
+/* Sidebar */
+.sidebar { 
+    width: 280px; background: #f8fafc; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; padding: 1rem; 
+}
+.sidebar-header h2 { font-size: 0.75rem; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em; font-weight: 700; margin-bottom: 10px; }
+.sidebar-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; margin-bottom: 20px; }
+
+.room-item { padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: 500; display: flex; justify-content: space-between; }
+.room-item:hover { background: #e2e8f0; }
+.room-item.active { background: #eff6ff; color: var(--primary); }
+
+.user-item { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 0.9rem; }
+.user-avatar { width: 28px; height: 28px; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: bold; }
+
+/* Main Chat Area */
+.chat-main { flex: 1; display: flex; flex-direction: column; background: var(--white); min-width: 0; }
+
+.chat-header { 
+    padding: 1rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.95); 
+}
+.header-info h2 { font-size: 1.1rem; margin-bottom: 2px; }
+.header-info span { font-size: 0.8rem; color: var(--text-light); }
+
+/* Messages */
+.messages-area { flex: 1; padding: 1rem; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #fafafa; }
+
+.message { display: flex; gap: 10px; max-width: 75%; animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+@keyframes popIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+
+.message.my { align-self: flex-end; flex-direction: row-reverse; }
+.message.other { align-self: flex-start; }
+
+.bubble { padding: 10px 14px; border-radius: 12px; position: relative; word-wrap: break-word; line-height: 1.4; font-size: 0.95rem; }
+.message.my .bubble { background: var(--primary); color: white; border-bottom-right-radius: 2px; }
+.message.other .bubble { background: var(--white); color: var(--text-dark); border: 1px solid #e5e7eb; border-bottom-left-radius: 2px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+
+.msg-meta { font-size: 0.7rem; margin-bottom: 4px; opacity: 0.8; display: flex; justify-content: space-between; gap: 10px; min-width: 120px; }
+.message.my .msg-meta { color: rgba(255,255,255,0.9); }
+
+/* Links inside messages */
+.msg-text a { color: inherit; text-decoration: underline; font-weight: 500; }
+
+/* Typing & Input */
+.typing-text { height: 24px; padding: 0 1rem; font-size: 0.8rem; color: var(--text-light); font-style: italic; display: flex; align-items: center; }
+
+.input-area { padding: 1rem; border-top: 1px solid #e2e8f0; display: flex; gap: 10px; background: var(--white); }
+
+/* --- 6. Modal (Popup) --- */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 50; backdrop-filter: blur(2px); }
+.modal.hidden { display: none; }
+.modal-content { background: var(--white); padding: 1.5rem; border-radius: var(--radius); width: 90%; max-width: 350px; display: flex; flex-direction: column; gap: 1rem; box-shadow: var(--shadow); }
+.modal-actions { display: flex; gap: 1rem; justify-content: flex-end; }
+
+/* --- 7. Toasts (Notifications) --- */
+#toast-box { position: fixed; top: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 100; }
+.toast { background: #333; color: white; padding: 12px 20px; border-radius: 8px; box-shadow: var(--shadow); animation: slideIn 0.3s; font-size: 0.9rem; border-left: 4px solid var(--primary); }
+.toast-error { border-left-color: var(--danger); }
+@keyframes slideIn { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+
+/* --- 8. Mobile Responsiveness --- */
+@media (max-width: 768px) {
+    .sidebar { display: none; } /* Hide sidebar on mobile for simplicity */
+    #chat-screen { height: 100vh; margin: 0; border-radius: 0; }
+    .message { max-width: 85%; }
+    .lobby-card { box-shadow: none; padding: 1rem; }
+}
