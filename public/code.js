@@ -4,20 +4,18 @@
 
     const socket = io();
 
-    // --- 1. State Management ---
+    // --- State ---
     const state = {
         username: "",
         room: null,
         typingTimer: null,
+        typingUsers: new Set(), // Track who is typing
         isFocused: true
     };
 
-    // --- 2. DOM Elements (Cache them for performance) ---
+    // --- DOM Elements ---
     const DOM = {
-        screens: {
-            lobby: document.getElementById("lobby-screen"),
-            chat: document.getElementById("chat-screen"),
-        },
+        screens: { lobby: document.getElementById("lobby-screen"), chat: document.getElementById("chat-screen") },
         lobby: {
             input: document.getElementById("lobby-username"),
             roomList: document.getElementById("room-list"),
@@ -37,29 +35,32 @@
             typing: document.getElementById("typing-indicator"),
             leaveBtn: document.getElementById("leave-room"),
             sidebarRooms: document.getElementById("sidebar-rooms"),
+            // New Elements
+            emojiBtn: document.getElementById("emoji-btn"),
+            emojiPicker: document.getElementById("emoji-picker"),
+            sound: document.getElementById("notif-sound")
         },
         toastBox: document.getElementById("toast-box")
     };
 
-    // --- 3. UI Helpers ---
-
-    // Toast Notification System
+    // --- Helpers ---
     function showToast(msg, type = "info") {
         const el = document.createElement("div");
         el.className = `toast toast-${type}`;
         el.textContent = msg;
         DOM.toastBox.appendChild(el);
-        // Remove after 3 seconds
         setTimeout(() => el.remove(), 3000);
     }
 
-    // Switch between Lobby and Chat screens
     function setScreen(screenName) {
         Object.values(DOM.screens).forEach(el => el.classList.remove("active"));
         DOM.screens[screenName].classList.add("active");
     }
 
-    // Generate a consistent color for a user avatar
+    function formatTime(iso) {
+        return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
     function generateAvatarColor(name) {
         const colors = ["#EF4444", "#F97316", "#F59E0B", "#10B981", "#3B82F6", "#6366F1", "#EC4899"];
         let hash = 0;
@@ -67,125 +68,120 @@
         return colors[Math.abs(hash) % colors.length];
     }
 
-    // Format timestamp (e.g. "10:30 AM")
-    function formatTime(iso) {
-        return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
-
-    // Securely creates text nodes (prevents XSS) and auto-links URLs
     function createMessageContent(text) {
-        const fragment = document.createDocumentFragment();
-        // Split text by URLs
-        const parts = text.split(/((?:https?:\/\/|www\.)[^\s]+)/g);
-        
+        const span = document.createElement("span");
+        const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|(?:https?:\/\/|www\.)[^\s]+)/g);
         parts.forEach(part => {
             if (part.match(/^(https?:\/\/|www\.)/)) {
                 const a = document.createElement("a");
                 a.href = part.startsWith("www.") ? "https://" + part : part;
                 a.target = "_blank";
-                a.rel = "noopener noreferrer";
                 a.textContent = part;
-                fragment.appendChild(a);
-            } else {
-                fragment.appendChild(document.createTextNode(part));
+                span.appendChild(a);
+            } 
+            else if (part.startsWith("**") && part.length > 4) {
+                const b = document.createElement("b");
+                b.textContent = part.slice(2, -2);
+                span.appendChild(b);
+            }
+            else if (part.startsWith("*") && part.length > 2) {
+                const i = document.createElement("i");
+                i.textContent = part.slice(1, -1);
+                span.appendChild(i);
+            }
+            else if (part.trim()) {
+                span.appendChild(document.createTextNode(part));
             }
         });
-        return fragment;
+        return span;
     }
 
-    // --- 4. Render Logic ---
-
-    // Render list of rooms in Lobby and Sidebar
+    // --- Rendering ---
     function renderRooms(rooms) {
-        // Helper HTML generator
-        const generateHTML = (r) => `
-            <div class="room-name" style="font-weight:bold">${r.name}</div>
-            <div class="room-info" style="font-size:0.85rem; color:#666">${r.userCount} user${r.userCount !== 1 ? 's' : ''}</div>
-        `;
-
-        // 1. Lobby List
         DOM.lobby.roomList.innerHTML = "";
-        if (rooms.length === 0) DOM.lobby.roomList.innerHTML = "<div class='empty-msg'>No active rooms. Create one!</div>";
+        DOM.chat.sidebarRooms.innerHTML = "";
         
+        if (rooms.length === 0) DOM.lobby.roomList.innerHTML = "<div class='empty-msg'>No active rooms. Create one!</div>";
+
         rooms.forEach(r => {
+            // Lobby
             const card = document.createElement("div");
             card.className = "room-card";
-            card.innerHTML = generateHTML(r);
-            card.onclick = () => joinRoom(r.name); // Click to join
+            card.innerHTML = `<div class="room-name" style="font-weight:bold">${r.name}</div><div class="room-info">${r.userCount} users</div>`;
+            card.onclick = () => joinRoom(r.name);
             DOM.lobby.roomList.appendChild(card);
-        });
 
-        // 2. Sidebar List (Chat Screen)
-        DOM.chat.sidebarRooms.innerHTML = "";
-        rooms.forEach(r => {
+            // Sidebar
             const item = document.createElement("div");
             item.className = `room-item ${state.room === r.name ? 'active' : ''}`;
-            item.innerHTML = `<span># ${r.name}</span> <span style="font-size:0.8em; opacity:0.7">${r.userCount}</span>`;
+            item.innerHTML = `<span># ${r.name}</span> <span>${r.userCount}</span>`;
             if (state.room !== r.name) item.onclick = () => joinRoom(r.name);
             DOM.chat.sidebarRooms.appendChild(item);
         });
     }
 
-    // Render a single chat message
     function renderMessage(msg) {
         const isMe = msg.username === state.username;
-        
         const wrapper = document.createElement("div");
         wrapper.className = `message ${isMe ? "my" : "other"}`;
 
-        // Avatar
-        const avatar = document.createElement("div");
-        avatar.className = "msg-avatar"; // You can add CSS for this if missing
-        // avatar.style.background = generateAvatarColor(msg.username);
-        // avatar.textContent = msg.username[0].toUpperCase();
-
-        // Bubble
         const bubble = document.createElement("div");
         bubble.className = "bubble";
-
-        // Meta (Name + Time)
+        
         const meta = document.createElement("div");
         meta.className = "msg-meta";
         meta.innerHTML = `<span class="name" style="font-weight:bold">${isMe ? "You" : msg.username}</span> <span class="time">${formatTime(msg.time)}</span>`;
 
-        // Text Content
         const textDiv = document.createElement("div");
         textDiv.className = "msg-text";
         textDiv.appendChild(createMessageContent(msg.text));
 
         bubble.append(meta, textDiv);
         wrapper.appendChild(bubble);
-
         DOM.chat.messages.appendChild(wrapper);
-        
-        // Auto-scroll to bottom
+        DOM.chat.messages.scrollTop = DOM.chat.messages.scrollHeight;
+
+        // Play Sound (if not me)
+        if (!isMe) {
+            try { DOM.chat.sound.currentTime = 0; DOM.chat.sound.play(); } catch(e){}
+        }
+    }
+
+    function renderSystemMessage(text) {
+        const div = document.createElement("div");
+        div.className = "system-message";
+        div.textContent = text;
+        DOM.chat.messages.appendChild(div);
         DOM.chat.messages.scrollTop = DOM.chat.messages.scrollHeight;
     }
 
-    // --- 5. Core Actions ---
+    function renderTyping() {
+        if (state.typingUsers.size === 0) {
+            DOM.chat.typing.textContent = "";
+            return;
+        }
+        const users = Array.from(state.typingUsers);
+        if (users.length === 1) DOM.chat.typing.textContent = `${users[0]} is typing...`;
+        else if (users.length === 2) DOM.chat.typing.textContent = `${users[0]} and ${users[1]} are typing...`;
+        else DOM.chat.typing.textContent = `Multiple people are typing...`;
+    }
 
+    // --- Actions ---
     function joinRoom(roomName) {
         const username = DOM.lobby.input.value.trim();
-        if (!username) return showToast("Please enter a username", "error");
+        if (!username) return showToast("Enter a username", "error");
 
         state.username = username;
-
-        // Emit 'join' event to server
         socket.emit("room:join", { roomName, username }, (res) => {
             if (res.error) return showToast(res.error, "error");
-
-            // Success! Update UI
+            
             state.room = roomName;
             DOM.chat.roomName.textContent = "# " + roomName;
-            DOM.chat.userInfo.textContent = `Logged in as ${username}`;
+            DOM.chat.userInfo.textContent = username;
             
-            // Clear old messages and render history
             DOM.chat.messages.innerHTML = "";
             if (res.history) res.history.forEach(renderMessage);
-            
-            // Render Users
             updateUserList(res.users);
-
             setScreen("chat");
         });
     }
@@ -193,10 +189,9 @@
     function sendMessage() {
         const text = DOM.chat.input.value.trim();
         if (!text) return;
-
-        socket.emit("chat:message", { text }, (res) => {
-            if (res && res.error) showToast(res.error, "error");
-            else DOM.chat.input.value = ""; // Clear input on success
+        socket.emit("chat:message", { text }, () => {
+             DOM.chat.input.value = "";
+             socket.emit("chat:typing", false); // Stop typing instantly on send
         });
     }
 
@@ -205,70 +200,79 @@
         users.forEach(u => {
             const div = document.createElement("div");
             div.className = "user-item";
-            div.innerHTML = `
-                <div class="user-avatar" style="background:${generateAvatarColor(u)}">${u[0].toUpperCase()}</div>
-                <div>${u}</div>
-            `;
+            div.innerHTML = `<div class="user-avatar" style="background:${generateAvatarColor(u)}">${u[0].toUpperCase()}</div><div>${u}</div>`;
             DOM.chat.usersList.appendChild(div);
         });
     }
 
-    // --- 6. Socket Event Listeners ---
-
-    // Update room list whenever someone creates a room or joins/leaves
+    // --- Socket Events ---
     socket.on("rooms:list", renderRooms);
+    socket.on("chat:message", renderMessage);
 
-    // Receive a new message
-    socket.on("chat:message", (msg) => {
-        renderMessage(msg);
+    // 1. Join/Left with System Message
+    socket.on("room:user-joined", ({ username }) => {
+        renderSystemMessage(`${username} joined the room`);
+        // Note: For simplicity, user list updates when we get "rooms:list" or manual fetch. 
+        // Ideally we should push this user to sidebar directly, but this works for now.
     });
 
-    // User Joined Notification
-    socket.on("room:user-joined", ({ username, userCount }) => {
-        showToast(`${username} joined!`);
-        // We could also re-fetch the user list here if we wanted strictly accurate sidebar data
-        // For now, let's just append a system message? 
-        // Or better, let's ask the server for the user list again or handle it via a separate event.
-        // For simplicity in this version, we will just rely on the toast.
-    });
-
-    // User Left Notification
     socket.on("room:user-left", ({ username }) => {
-        showToast(`${username} left.`);
+        renderSystemMessage(`${username} left the room`);
     });
 
-    // --- 7. DOM Event Bindings ---
+    // 2. Typing Indicator
+    socket.on("chat:typing", ({ username, isTyping }) => {
+        if (isTyping) state.typingUsers.add(username);
+        else state.typingUsers.delete(username);
+        renderTyping();
+    });
 
-    // Toggle Modal
+    // --- DOM Events ---
     DOM.lobby.createBtn.onclick = () => DOM.lobby.modal.classList.remove("hidden");
     DOM.lobby.modalCancel.onclick = () => DOM.lobby.modal.classList.add("hidden");
-
-    // Create Room Submit
+    
     DOM.lobby.modalSubmit.onclick = () => {
         const name = DOM.lobby.modalInput.value.trim();
-        if (!name) return showToast("Enter a room name", "error");
-        
+        if (!name) return showToast("Enter room name", "error");
         socket.emit("room:create", { roomName: name }, (res) => {
             if (res.error) return showToast(res.error, "error");
-            
             DOM.lobby.modal.classList.add("hidden");
-            DOM.lobby.modalInput.value = "";
-            // Auto-join the new room
             joinRoom(res.roomName);
         });
     };
 
-    // Send Message
     DOM.chat.sendBtn.onclick = sendMessage;
     DOM.chat.input.onkeydown = (e) => {
         if (e.key === "Enter") sendMessage();
+        // Typing Emit
+        socket.emit("chat:typing", true);
+        clearTimeout(state.typingTimer);
+        state.typingTimer = setTimeout(() => socket.emit("chat:typing", false), 1000);
     };
 
-    // Leave Room
     DOM.chat.leaveBtn.onclick = () => {
         socket.emit("room:leave");
         state.room = null;
         setScreen("lobby");
     };
+
+    // 3. Emoji Logic
+    DOM.chat.emojiBtn.onclick = () => DOM.chat.emojiPicker.classList.toggle("hidden");
+    
+    // Add emoji to input when clicked
+    DOM.chat.emojiPicker.addEventListener("click", (e) => {
+        if (e.target.tagName === "SPAN") {
+            DOM.chat.input.value += e.target.textContent;
+            DOM.chat.input.focus();
+            DOM.chat.emojiPicker.classList.add("hidden"); // Close after pick
+        }
+    });
+
+    // Close emoji picker if clicking outside
+    document.addEventListener("click", (e) => {
+        if (!DOM.chat.emojiPicker.contains(e.target) && e.target !== DOM.chat.emojiBtn) {
+            DOM.chat.emojiPicker.classList.add("hidden");
+        }
+    });
 
 })();

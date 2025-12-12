@@ -1,4 +1,3 @@
-
 const express = require("express");
 const http = require("http");
 const path = require("path");
@@ -151,6 +150,17 @@ io.on("connection", (socket) => {
     // Broadcast to the specific room only
     io.to(meta.roomName).emit("chat:message", message);
     cb({ ok: true });
+  });
+
+  // EVENT: Chat Typing
+  socket.on("chat:typing", (isTyping) => {
+    const meta = sockets.get(socket.id);
+    if (meta.roomName) {
+      socket.to(meta.roomName).emit("chat:typing", { 
+        username: meta.username, 
+        isTyping: !!isTyping 
+      });
+    }
   });
 
   // EVENT: Disconnect / Leave
