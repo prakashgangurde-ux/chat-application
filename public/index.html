@@ -2,98 +2,148 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ultra Chat</title>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <title>ChatTiko</title>
     <link rel="stylesheet" href="styles.css" />
-    
     <script src="/socket.io/socket.io.js" defer></script>
     <script src="code.js" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
-    <audio id="notif-sound" src="notify.mp3"></audio>
 
-    <div id="toast-box"></div>
-
-    <div id="lobby-screen" class="screen active">
-        <div class="lobby-card">
-            <h1 class="app-title">Ultra Chat</h1>
-            <p class="subtitle">Secure • Real-Time • Fast</p>
-            <div class="input-group">
-                <label>Choose a Username</label>
-                <input type="text" id="lobby-username" placeholder="e.g. IronMan" maxlength="15" />
-            </div>
-            <div class="room-section">
-                <h3>Active Rooms</h3>
-                <div id="room-list" class="room-list"><div class="empty-msg">Connecting...</div></div>
-            </div>
-            <button id="btn-create-room" class="btn primary full-width">+ Create New Room</button>
-        </div>
-
-        <div id="create-room-modal" class="modal hidden">
-            <div class="modal-content">
-                <h2>Create Room</h2>
-                <input type="text" id="new-room-name" placeholder="Room Name" maxlength="20" />
-                <input type="password" id="new-room-pass" placeholder="Password (Optional)" maxlength="20" />
-                <div class="modal-actions">
-                    <button id="modal-cancel-room" class="btn secondary">Cancel</button>
-                    <button id="modal-create-room" class="btn primary">Create</button>
-                </div>
-            </div>
-        </div>
-
-        <div id="join-room-modal" class="modal hidden">
-            <div class="modal-content">
-                <h2>Locked Room 🔒</h2>
-                <p id="join-room-title" style="margin-top:-10px; color:#666; font-size:0.9rem;">Enter password to join</p>
-                <input type="password" id="join-room-pass" placeholder="Enter Password" />
-                <div class="modal-actions">
-                    <button id="modal-cancel-join" class="btn secondary">Cancel</button>
-                    <button id="modal-confirm-join" class="btn primary">Join</button>
-                </div>
-            </div>
+    <div id="login-screen" class="login-overlay">
+        <div class="login-card">
+            <h1 class="brand" style="justify-content: center; font-size: 2rem;">Chat<span>Tiko</span></h1>
+            <p style="color:var(--text-muted); margin-top:10px;">Enter your username to join.</p>
+            
+            <input type="text" id="lobby-username" class="login-input" placeholder="e.g. Adrin" maxlength="15" />
+            <button id="btn-enter-app" class="login-btn">Start Chatting</button>
         </div>
     </div>
 
-    <div id="chat-screen" class="screen">
-        <aside class="sidebar">
-            <div class="sidebar-header"><h2>Rooms</h2></div>
-            <div id="sidebar-rooms" class="sidebar-scroll"></div>
-            <div class="sidebar-header mt-4"><h2>Users Online</h2></div>
-            <div id="sidebar-users" class="sidebar-scroll"></div>
+    <div id="app-dashboard" class="app-container hidden">
+        
+        <aside class="sidebar-left" id="sidebar-left">
+            <div class="brand">Chat<span>Tiko</span></div>
+            
+            <div class="nav-tabs">
+                <div class="nav-tab active" id="tab-public">Public</div>
+                <div class="nav-tab" id="tab-private">Private</div>
+            </div>
+
+            <div id="rooms-panel">
+                <div class="section-title">Active Rooms</div>
+                <div id="room-list" class="room-list">
+                    </div>
+                <button id="btn-create-room" class="btn-dashed">+ Create Room</button>
+            </div>
+
+            <div id="users-panel" class="hidden">
+                <div class="section-title">Direct Messages</div>
+                <div id="user-list-dm" class="user-list">
+                    </div>
+            </div>
+                <div style="margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border);">
+                     <button id="btn-logout" class="login-btn secondary" style="padding: 10px;">Log Out</button>
+                </div>
         </aside>
 
         <main class="chat-main">
             <header class="chat-header">
                 <div class="header-info">
-                    <h2 id="chat-room-name"># General</h2>
-                    <span id="chat-user-info">...</span>
+                    <button id="menu-btn" class="icon-btn mobile-only" aria-label="Menu">☰</button>
+                    <div>
+                        <h2 id="chat-header-name"># General</h2>
+                        <div class="header-status">
+                            <span class="status-dot"></span> 
+                            <span id="chat-header-desc">Online</span>
+                        </div>
+                    </div>
                 </div>
-                <button id="leave-room" class="btn danger small">Leave Room</button>
+
+                <div class="header-actions">
+                    <button class="icon-btn" aria-label="Search">🔍</button>
+                    <button class="icon-btn danger-hover" id="leave-room" aria-label="Leave Room">🚪</button>
+                </div>
             </header>
 
             <div id="messages" class="messages-area"></div>
             
-            <div id="typing-indicator" class="typing-text"></div>
+            <div id="typing-indicator" class="typing-bar"></div>
+
+            <div id="replying-bar" class="replying-bar hidden">
+                <span id="reply-text">Replying to...</span>
+                <button id="cancel-reply" class="close-btn">✕</button>
+            </div>
+
+            <div class="input-wrapper">
+                <div class="input-bar">
+                    <button id="emoji-btn" class="icon-btn" aria-label="Emoji">😀</button>
+                    <button id="attach-btn" class="icon-btn" aria-label="Attach">📎</button>
+                    <input type="file" id="file-input" hidden accept="image/*" />
+                    
+                    <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off" />
+                    
+                    <button id="send-message" class="send-btn" aria-label="Send">➤</button>
+                </div>
+            </div>
 
             <div id="emoji-picker" class="emoji-picker hidden">
                 <span>😀</span><span>😂</span><span>😍</span><span>🔥</span><span>👍</span><span>🎉</span>
                 <span>😎</span><span>😭</span><span>👻</span><span>🚀</span><span>❤️</span><span>✅</span>
-                <span>👋</span><span>🤔</span><span>👀</span><span>💯</span>
-            </div>
-
-            <div class="input-area">
-                <button id="emoji-btn" class="btn secondary" style="padding: 0 10px;">😀</button>
-                
-                <button id="attach-btn" class="btn secondary" style="padding: 0 10px; margin-left: 5px;">📎</button>
-                <input type="file" id="file-input" accept="image/*" style="display: none;" />
-
-                <input type="text" id="message-input" placeholder="Type a message..." maxlength="500" autocomplete="off" />
-                <button id="send-message" class="btn primary">Send ➤</button>
-
-
             </div>
         </main>
+
+        <aside class="sidebar-right" id="sidebar-right">
+            <div class="profile-card">
+                <div class="profile-pic-large" id="my-profile-pic">U</div>
+                <div class="profile-name" id="my-username">User</div>
+                <div class="profile-status">Online</div>
+            </div>
+
+            <div class="info-box">
+                <div class="info-label">Email</div>
+                <div class="info-val">user@chattiko.com</div>
+            </div>
+            
+            <div class="info-box">
+                <div class="info-label">Shared Media</div>
+                <div class="media-grid">
+                    <div class="media-placeholder"></div>
+                    <div class="media-placeholder"></div>
+                    <div class="media-placeholder"></div>
+                </div>
+            </div>
+        </aside>
+
     </div>
+
+    <div id="create-room-modal" class="login-overlay hidden">
+        <div class="login-card">
+            <h2>Create Room</h2>
+            <input type="text" id="new-room-name" class="login-input" placeholder="Room Name" />
+            <input type="password" id="new-room-pass" class="login-input" placeholder="Password (Optional)" />
+            <div class="modal-actions">
+                <button id="modal-cancel-room" class="login-btn secondary">Cancel</button>
+                <button id="modal-create-room" class="login-btn primary">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="join-room-modal" class="login-overlay hidden">
+        <div class="login-card">
+            <h2>Locked Room 🔒</h2>
+            <input type="password" id="join-room-pass" class="login-input" placeholder="Enter Password" />
+            <div class="modal-actions">
+                <button id="modal-cancel-join" class="login-btn secondary">Cancel</button>
+                <button id="modal-confirm-join" class="login-btn primary">Join</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-box"></div>
+
+    <audio id="notif-sound" src="notify.mp3"></audio>
+
 </body>
 </html>

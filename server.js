@@ -136,20 +136,21 @@ io.on("connection", (socket) => {
     io.emit("rooms:list", getRoomsSnapshot());
   });
 
-  // EVENT: Chat Message
-  socket.on("chat:message", ({ text, image }, cb) => {
+  // EVENT: Chat Message (now supports replyTo and reactions)
+  socket.on("chat:message", ({ text, image, replyTo }, cb) => {
     const meta = sockets.get(socket.id);
     if (!meta || !meta.roomName) return cb && cb({ error: "Not in a room" });
 
-    // Allow if text exists OR image exists
     const cleanText = sanitize(text || "").substring(0, CONFIG.MAX_MSG_LENGTH);
     if (!cleanText && !image) return cb && cb({ error: "Empty message" });
 
     const message = {
-      id: Date.now().toString(),
+      id: Date.now().toString() + Math.random().toString().slice(2,5), // Unique ID
       username: meta.username,
       text: cleanText,
-      image: image || null, // Pass image through
+      image: image || null,
+      replyTo: replyTo || null, // NEW: Stores the quoted message
+      reactions: {}, // NEW: Stores reactions like { "❤️": 5, "😂": 2 }
       time: new Date().toISOString()
     };
 
@@ -161,6 +162,25 @@ io.on("connection", (socket) => {
 
     io.to(meta.roomName).emit("chat:message", message);
     cb && cb({ ok: true });
+  });
+
+  // NEW EVENT: Handle Reactions
+  socket.on("chat:reaction", ({ messageId, reaction }, cb) => {
+    const meta = sockets.get(socket.id);
+    if (!meta || !meta.roomName) return;
+
+    const room = rooms.get(meta.roomName);
+    if (!room) return;
+
+    // Find the message in history
+    const msg = room.messages.find(m => m.id === messageId);
+    if (msg) {
+      // Initialize if missing
+      if (!msg.reactions) msg.reactions = {};
+
+      // Simple toggle logic: just broadcast the event so clients update UI.
+      io.to(meta.roomName).emit("chat:reaction", { messageId, reaction, username: meta.username });
+    }
   });
 
   // EVENT: Chat Typing
