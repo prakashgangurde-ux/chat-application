@@ -190,3 +190,25 @@ input[type="text"]:focus { border-color: var(--primary); box-shadow: 0 0 0 2px r
 }
 .emoji-picker span:hover { background: #f3f4f6; }
 
+.room-lock {
+    font-size: 0.9rem;
+    color: var(--text-light);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.room-card {
+    /* Ensure flex alignment for the lock icon */
+    align-items: center;
+}
+
+input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    outline: none;
+    margin-top: 10px; /* Spacing between inputs */
+}
+

@@ -20,9 +20,11 @@ app.use(cors()); // Allow cross-origin requests
 app.use(express.static(path.join(__dirname, "public")));
 
 // --- 2. Socket.IO Setup ---
+// --- (With 5MB Limit) ---
 const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] },
-  pingTimeout: 60000, // Wait 60s before assuming a user timed out
+  pingTimeout: 60000,
+  maxHttpBufferSize: 5 * 1024 * 1024 // Allow up to 5MB packets (for images)
 });
 
 const PORT = process.env.PORT || 5000;
@@ -41,8 +43,9 @@ const CONFIG = {
 // --- 4. Helper Functions ---
 
 // Creates a fresh room object
-const createRoom = (name) => ({
+const createRoom = (name, password = null) => ({
   name,
+  password, // Store the password (or null)
   users: new Map(), // Stores users in this specific room
   messages: [],     // Stores chat history
   createdAt: new Date().toISOString()
@@ -59,7 +62,8 @@ const getRoomsSnapshot = () => {
   return Array.from(rooms.values()).map(r => ({
     name: r.name,
     userCount: r.users.size,
-    id: r.name // simple ID
+    id: r.name, // simple ID
+    isLocked: !!r.password // Returns true if password exists, false if null
   }));
 };
 
@@ -73,25 +77,32 @@ io.on("connection", (socket) => {
   socket.emit("rooms:list", getRoomsSnapshot());
 
   // EVENT: Create a Room
-  socket.on("room:create", ({ roomName }, cb) => {
+  socket.on("room:create", ({ roomName, password }, cb) => {
     const cleanName = sanitize(roomName || "").trim().substring(0, 20);
     
     if (!cleanName) return cb({ error: "Invalid room name" });
     if (rooms.has(cleanName)) return cb({ error: "Room already exists" });
 
-    // Create and save
-    rooms.set(cleanName, createRoom(cleanName));
+    // Store room with password (if provided)
+    rooms.set(cleanName, createRoom(cleanName, password || null));
     
-    // Broadcast update to everyone in the lobby
     io.emit("rooms:list", getRoomsSnapshot());
     
     cb({ ok: true, roomName: cleanName });
   });
 
   // EVENT: Join a Room
-  socket.on("room:join", ({ roomName, username }, cb) => {
+  socket.on("room:join", ({ roomName, username, password }, cb) => {
     const room = rooms.get(roomName);
     if (!room) return cb({ error: "Room not found" });
+
+    // --- SECURITY CHECK ---
+    if (room.password) {
+      if (room.password !== password) {
+        return cb({ error: "Incorrect Password" });
+      }
+    }
+    // ----------------------
 
     const cleanUser = sanitize(username || "").trim().substring(0, 15);
     if (!cleanUser) return cb({ error: "Invalid username" });
@@ -126,30 +137,30 @@ io.on("connection", (socket) => {
   });
 
   // EVENT: Chat Message
-  socket.on("chat:message", ({ text }, cb) => {
+  socket.on("chat:message", ({ text, image }, cb) => {
     const meta = sockets.get(socket.id);
-    if (!meta || !meta.roomName) return cb({ error: "Not in a room" });
+    if (!meta || !meta.roomName) return cb && cb({ error: "Not in a room" });
 
+    // Allow if text exists OR image exists
     const cleanText = sanitize(text || "").substring(0, CONFIG.MAX_MSG_LENGTH);
-    if (!cleanText) return; // Ignore empty
+    if (!cleanText && !image) return cb && cb({ error: "Empty message" });
 
     const message = {
       id: Date.now().toString(),
       username: meta.username,
       text: cleanText,
+      image: image || null, // Pass image through
       time: new Date().toISOString()
     };
 
-    // Save to history
     const room = rooms.get(meta.roomName);
     if (room) {
       room.messages.push(message);
       if (room.messages.length > CONFIG.MAX_HISTORY) room.messages.shift();
     }
 
-    // Broadcast to the specific room only
     io.to(meta.roomName).emit("chat:message", message);
-    cb({ ok: true });
+    cb && cb({ ok: true });
   });
 
   // EVENT: Chat Typing

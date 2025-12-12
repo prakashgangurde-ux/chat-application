@@ -29,14 +29,27 @@
             </div>
             <button id="btn-create-room" class="btn primary full-width">+ Create New Room</button>
         </div>
-        
+
         <div id="create-room-modal" class="modal hidden">
             <div class="modal-content">
                 <h2>Create Room</h2>
                 <input type="text" id="new-room-name" placeholder="Room Name" maxlength="20" />
+                <input type="password" id="new-room-pass" placeholder="Password (Optional)" maxlength="20" />
                 <div class="modal-actions">
                     <button id="modal-cancel-room" class="btn secondary">Cancel</button>
                     <button id="modal-create-room" class="btn primary">Create</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="join-room-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2>Locked Room 🔒</h2>
+                <p id="join-room-title" style="margin-top:-10px; color:#666; font-size:0.9rem;">Enter password to join</p>
+                <input type="password" id="join-room-pass" placeholder="Enter Password" />
+                <div class="modal-actions">
+                    <button id="modal-cancel-join" class="btn secondary">Cancel</button>
+                    <button id="modal-confirm-join" class="btn primary">Join</button>
                 </div>
             </div>
         </div>
@@ -71,8 +84,14 @@
 
             <div class="input-area">
                 <button id="emoji-btn" class="btn secondary" style="padding: 0 10px;">😀</button>
+                
+                <button id="attach-btn" class="btn secondary" style="padding: 0 10px; margin-left: 5px;">📎</button>
+                <input type="file" id="file-input" accept="image/*" style="display: none;" />
+
                 <input type="text" id="message-input" placeholder="Type a message..." maxlength="500" autocomplete="off" />
                 <button id="send-message" class="btn primary">Send ➤</button>
+
+
             </div>
         </main>
     </div>

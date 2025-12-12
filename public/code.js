@@ -8,8 +8,9 @@
     const state = {
         username: "",
         room: null,
+        pendingRoom: null,
         typingTimer: null,
-        typingUsers: new Set(), // Track who is typing
+        typingUsers: new Set(),
         isFocused: true
     };
 
@@ -22,8 +23,14 @@
             createBtn: document.getElementById("btn-create-room"),
             modal: document.getElementById("create-room-modal"),
             modalInput: document.getElementById("new-room-name"),
+            modalPass: document.getElementById("new-room-pass"),
             modalSubmit: document.getElementById("modal-create-room"),
             modalCancel: document.getElementById("modal-cancel-room"),
+            joinModal: document.getElementById("join-room-modal"),
+            joinPass: document.getElementById("join-room-pass"),
+            joinTitle: document.getElementById("join-room-title"),
+            joinCancel: document.getElementById("modal-cancel-join"),
+            joinConfirm: document.getElementById("modal-confirm-join"),
         },
         chat: {
             roomName: document.getElementById("chat-room-name"),
@@ -35,10 +42,12 @@
             typing: document.getElementById("typing-indicator"),
             leaveBtn: document.getElementById("leave-room"),
             sidebarRooms: document.getElementById("sidebar-rooms"),
-            // New Elements
             emojiBtn: document.getElementById("emoji-btn"),
             emojiPicker: document.getElementById("emoji-picker"),
-            sound: document.getElementById("notif-sound")
+            sound: document.getElementById("notif-sound"),
+            // NEW ELEMENTS
+            attachBtn: document.getElementById("attach-btn"),
+            fileInput: document.getElementById("file-input")
         },
         toastBox: document.getElementById("toast-box")
     };
@@ -100,22 +109,26 @@
     function renderRooms(rooms) {
         DOM.lobby.roomList.innerHTML = "";
         DOM.chat.sidebarRooms.innerHTML = "";
-        
         if (rooms.length === 0) DOM.lobby.roomList.innerHTML = "<div class='empty-msg'>No active rooms. Create one!</div>";
 
         rooms.forEach(r => {
-            // Lobby
             const card = document.createElement("div");
             card.className = "room-card";
-            card.innerHTML = `<div class="room-name" style="font-weight:bold">${r.name}</div><div class="room-info">${r.userCount} users</div>`;
-            card.onclick = () => joinRoom(r.name);
+            const lockIcon = r.isLocked ? `<span class="room-lock">🔒 Private</span>` : "";
+            card.innerHTML = `
+                <div>
+                    <div class="room-name" style="font-weight:bold">${r.name}</div>
+                    <div class="room-info">${r.userCount} users</div>
+                </div>
+                ${lockIcon}
+            `;
+            card.onclick = () => handleJoinClick(r.name, r.isLocked);
             DOM.lobby.roomList.appendChild(card);
 
-            // Sidebar
             const item = document.createElement("div");
             item.className = `room-item ${state.room === r.name ? 'active' : ''}`;
-            item.innerHTML = `<span># ${r.name}</span> <span>${r.userCount}</span>`;
-            if (state.room !== r.name) item.onclick = () => joinRoom(r.name);
+            item.innerHTML = `<span>${r.isLocked ? '🔒' : '#'} ${r.name}</span> <span>${r.userCount}</span>`;
+            if (state.room !== r.name) item.onclick = () => handleJoinClick(r.name, r.isLocked);
             DOM.chat.sidebarRooms.appendChild(item);
         });
     }
@@ -132,16 +145,29 @@
         meta.className = "msg-meta";
         meta.innerHTML = `<span class="name" style="font-weight:bold">${isMe ? "You" : msg.username}</span> <span class="time">${formatTime(msg.time)}</span>`;
 
-        const textDiv = document.createElement("div");
-        textDiv.className = "msg-text";
-        textDiv.appendChild(createMessageContent(msg.text));
+        // NEW: Check if it's an image or text
+        const contentDiv = document.createElement("div");
+        contentDiv.className = "msg-text";
 
-        bubble.append(meta, textDiv);
+        if (msg.image) {
+            // Render Image
+            const img = document.createElement("img");
+            img.src = msg.image;
+            img.style.maxWidth = "200px";
+            img.style.borderRadius = "8px";
+            img.style.cursor = "pointer";
+            img.onclick = () => window.open(msg.image, "_blank"); // Open full size on click
+            contentDiv.appendChild(img);
+        } else {
+            // Render Text
+            contentDiv.appendChild(createMessageContent(msg.text));
+        }
+
+        bubble.append(meta, contentDiv);
         wrapper.appendChild(bubble);
         DOM.chat.messages.appendChild(wrapper);
         DOM.chat.messages.scrollTop = DOM.chat.messages.scrollHeight;
 
-        // Play Sound (if not me)
         if (!isMe) {
             try { DOM.chat.sound.currentTime = 0; DOM.chat.sound.play(); } catch(e){}
         }
@@ -156,29 +182,37 @@
     }
 
     function renderTyping() {
-        if (state.typingUsers.size === 0) {
-            DOM.chat.typing.textContent = "";
-            return;
-        }
+        if (state.typingUsers.size === 0) { DOM.chat.typing.textContent = ""; return; }
         const users = Array.from(state.typingUsers);
         if (users.length === 1) DOM.chat.typing.textContent = `${users[0]} is typing...`;
-        else if (users.length === 2) DOM.chat.typing.textContent = `${users[0]} and ${users[1]} are typing...`;
         else DOM.chat.typing.textContent = `Multiple people are typing...`;
     }
 
     // --- Actions ---
-    function joinRoom(roomName) {
+    function handleJoinClick(roomName, isLocked) {
+        if (isLocked) {
+            state.pendingRoom = roomName;
+            DOM.lobby.joinTitle.textContent = `Enter password for "${roomName}"`;
+            DOM.lobby.joinPass.value = "";
+            DOM.lobby.joinModal.classList.remove("hidden");
+            DOM.lobby.joinPass.focus();
+        } else {
+            joinRoom(roomName, null);
+        }
+    }
+
+    function joinRoom(roomName, password) {
         const username = DOM.lobby.input.value.trim();
         if (!username) return showToast("Enter a username", "error");
 
         state.username = username;
-        socket.emit("room:join", { roomName, username }, (res) => {
+        socket.emit("room:join", { roomName, username, password }, (res) => {
             if (res.error) return showToast(res.error, "error");
             
+            DOM.lobby.joinModal.classList.add("hidden");
             state.room = roomName;
-            DOM.chat.roomName.textContent = "# " + roomName;
+            DOM.chat.roomName.textContent = (password ? "🔒 " : "# ") + roomName;
             DOM.chat.userInfo.textContent = username;
-            
             DOM.chat.messages.innerHTML = "";
             if (res.history) res.history.forEach(renderMessage);
             updateUserList(res.users);
@@ -189,10 +223,35 @@
     function sendMessage() {
         const text = DOM.chat.input.value.trim();
         if (!text) return;
+        // Send as text
         socket.emit("chat:message", { text }, () => {
              DOM.chat.input.value = "";
-             socket.emit("chat:typing", false); // Stop typing instantly on send
+             socket.emit("chat:typing", false);
         });
+    }
+
+    // NEW: Handle Image Selection
+    function sendImage(file) {
+        // Limit: 2MB
+        if (file.size > 2 * 1024 * 1024) return showToast("File too large (Max 2MB)", "error");
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const imageData = e.target.result; // Base64 string
+            
+            // We reuse the same chat:message event but pass 'text' as null and 'image' data
+            // Note: In server.js we are currently validating "text". We need to make sure server accepts it.
+            // *Correction*: Our server checks `if (!text) return`. We need to update that logic OR just send a placeholder text.
+            
+            // Let's send a placeholder text so we don't have to rewrite server logic completely right now.
+            // Or better, we send the image as the "text" payload if we want a quick hack, but that's messy.
+            // PROPER WAY: Update server to accept { text, image }
+            
+            socket.emit("chat:message", { text: "📷 Image", image: imageData }, (res) => {
+                if(res && res.error) showToast(res.error, "error");
+            });
+        };
+        reader.readAsDataURL(file);
     }
 
     function updateUserList(users) {
@@ -205,74 +264,81 @@
         });
     }
 
-    // --- Socket Events ---
+    // --- Events ---
     socket.on("rooms:list", renderRooms);
     socket.on("chat:message", renderMessage);
-
-    // 1. Join/Left with System Message
-    socket.on("room:user-joined", ({ username }) => {
-        renderSystemMessage(`${username} joined the room`);
-        // Note: For simplicity, user list updates when we get "rooms:list" or manual fetch. 
-        // Ideally we should push this user to sidebar directly, but this works for now.
-    });
-
-    socket.on("room:user-left", ({ username }) => {
-        renderSystemMessage(`${username} left the room`);
-    });
-
-    // 2. Typing Indicator
+    socket.on("room:user-joined", ({ username }) => renderSystemMessage(`${username} joined`));
+    socket.on("room:user-left", ({ username }) => renderSystemMessage(`${username} left`));
     socket.on("chat:typing", ({ username, isTyping }) => {
-        if (isTyping) state.typingUsers.add(username);
-        else state.typingUsers.delete(username);
+        if (isTyping) state.typingUsers.add(username); else state.typingUsers.delete(username);
         renderTyping();
     });
 
-    // --- DOM Events ---
+    // --- DOM Bindings ---
     DOM.lobby.createBtn.onclick = () => DOM.lobby.modal.classList.remove("hidden");
     DOM.lobby.modalCancel.onclick = () => DOM.lobby.modal.classList.add("hidden");
-    
     DOM.lobby.modalSubmit.onclick = () => {
         const name = DOM.lobby.modalInput.value.trim();
+        const pass = DOM.lobby.modalPass.value.trim();
         if (!name) return showToast("Enter room name", "error");
-        socket.emit("room:create", { roomName: name }, (res) => {
+        socket.emit("room:create", { roomName: name, password: pass }, (res) => {
             if (res.error) return showToast(res.error, "error");
             DOM.lobby.modal.classList.add("hidden");
-            joinRoom(res.roomName);
+            DOM.lobby.modalInput.value = "";
+            DOM.lobby.modalPass.value = "";
+            joinRoom(res.roomName, pass);
         });
     };
 
     DOM.chat.sendBtn.onclick = sendMessage;
     DOM.chat.input.onkeydown = (e) => {
         if (e.key === "Enter") sendMessage();
-        // Typing Emit
         socket.emit("chat:typing", true);
         clearTimeout(state.typingTimer);
         state.typingTimer = setTimeout(() => socket.emit("chat:typing", false), 1000);
     };
-
     DOM.chat.leaveBtn.onclick = () => {
         socket.emit("room:leave");
         state.room = null;
         setScreen("lobby");
     };
 
-    // 3. Emoji Logic
+    // Emoji
     DOM.chat.emojiBtn.onclick = () => DOM.chat.emojiPicker.classList.toggle("hidden");
-    
-    // Add emoji to input when clicked
-    DOM.chat.emojiPicker.addEventListener("click", (e) => {
+    DOM.chat.emojiPicker.onclick = (e) => {
         if (e.target.tagName === "SPAN") {
             DOM.chat.input.value += e.target.textContent;
+            DOM.chat.emojiPicker.classList.add("hidden");
             DOM.chat.input.focus();
-            DOM.chat.emojiPicker.classList.add("hidden"); // Close after pick
         }
-    });
-
-    // Close emoji picker if clicking outside
+    };
     document.addEventListener("click", (e) => {
         if (!DOM.chat.emojiPicker.contains(e.target) && e.target !== DOM.chat.emojiBtn) {
             DOM.chat.emojiPicker.classList.add("hidden");
         }
     });
+
+    // NEW: Attachment Bindings
+    DOM.chat.attachBtn.onclick = () => DOM.chat.fileInput.click();
+    
+    DOM.chat.fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            sendImage(file);
+            DOM.chat.fileInput.value = "";
+        }
+    };
+
+    // NEW: Join Modal Bindings
+    DOM.lobby.joinCancel.onclick = () => DOM.lobby.joinModal.classList.add("hidden");
+    DOM.lobby.joinConfirm.onclick = () => {
+        const pass = DOM.lobby.joinPass.value.trim();
+        if (state.pendingRoom) {
+            joinRoom(state.pendingRoom, pass);
+        }
+    };
+    DOM.lobby.joinPass.onkeydown = (e) => {
+        if (e.key === "Enter") DOM.lobby.joinConfirm.click();
+    };
 
 })();
